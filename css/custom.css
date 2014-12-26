@@ -1,0 +1,42 @@
+.reveal .slides section .banner {
+  -webkit-transform: rotate(-40deg) !important;
+  -moz-transform: rotate(-40deg) !important;
+  transform: rotate(-40deg) !important;
+  position: absolute;
+  right: 0px;
+  bottom: 0px;
+  color: orange;
+  font-size: 5em;
+  text-shadow: 0px 0px 50px rgb(0, 0, 0) !important;
+  font-weight: bold;
+
+  opacity: 0 !important;
+}
+
+.reveal .banner.current-fragment {
+  opacity: 1 !important;
+}
+
+.reveal .top-banner {
+  color: orange;
+  font-size: 5em;
+  text-shadow: 0px 0px 50px rgb(0, 0, 0);
+  font-weight: bold;
+}
+
+.reveal p.fade-out {
+  color: #cccccc;
+}
+
+.reveal p.fade-out strong {
+  color: #eeeeee;
+}
+
+/*.reveal aside.notes {
+  display: block;
+}
+*/
+
+.print-pdf .reveal .banner.pdf-visible {
+  opacity: 1 !important;
+}

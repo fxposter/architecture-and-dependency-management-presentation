@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en">
+
+  <head>
+    <meta charset="utf-8">
+
+    <title>Architecture &amp; dependency management in Ruby/Rails v2.0</title>
+
+    <meta name="description" content="A framework for easily creating beautiful presentations using HTML">
+    <meta name="author" content="Hakim El Hattab">
+
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <link rel="stylesheet" href="css/reveal.min.css">
+    <link rel="stylesheet" href="css/theme/default.css" id="theme">
+
+    <!-- For syntax highlighting -->
+    <link rel="stylesheet" href="lib/css/zenburn.css">
+
+    <link rel="stylesheet" href="css/custom.css">
+
+    <!-- If the query includes 'print-pdf', include the PDF print sheet -->
+    <script>
+      if( window.location.search.match( /print-pdf/gi ) ) {
+        var link = document.createElement( 'link' );
+        link.rel = 'stylesheet';
+        link.type = 'text/css';
+        link.href = 'css/print/pdf.css';
+        document.getElementsByTagName( 'head' )[0].appendChild( link );
+      }
+    </script>
+
+    <!--[if lt IE 9]>
+    <script src="lib/js/html5shiv.js"></script>
+    <![endif]-->
+  </head>
+
+  <body>
+
+    <div class="reveal">
+
+      <!-- Any section element inside of this container is displayed as a slide -->
+      <div class="slides">
+        <section>
+          <h1>Architecture &amp; dependency management in Ruby/Rails</h1>
+          <h2 class="fragment banner pdf-visible">v2.0</h2>
+          <h2 class="fragment banner">part 2</h2>
+        </section>
+
+        <section>
+          <h2>Forkert Pavel</h2>
+          <p>Rubyist for over than 4 years</p>
+          <p>Has committed to various opensource projects</p>
+          <p>DevOps at Wix.com</p>
+          <ul>
+            <li><a href="https://twitter.com/fxposter">@fxposter</a></li>
+            <li><a href="https://github.com/fxposter">github.com/fxposter</a></li>
+            <li><a href="http://blog.fxposter.org">blog.fxposter.org</a></li>
+            <li><a href="mailto:fxposter@gmail.com">fxposter@gmail.com</a></li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>In the previous episodes...</h2>
+          <blockquote>OOP, FP &amp; Dependency management in Ruby/Rails</blockquote>
+          <cite><a href="http://fxposter.github.io/dependency-management-presentation/">http://fxposter.github.io/dependency-management-presentation/</a></cite>
+        </section>
+
+        <section>
+          <img src="img/inception.jpg" alt="We Have To Go Deeper">
+          <aside class="notes">
+            Я сейчас хочу поговорить о нескольких вещах, которые мне кажутся сейчас очень важными, но в тех книгах и статьях, которые я читаю, о них либо вообще не говорят, либо говорят, как мне кажется, недостаточно.
+
+          </aside>
+        </section>
+
+        <section>
+          <pre><code class="ruby">class MediaService::PictureDatasource
+  def initialize(cdn)
+    @cdn = cdn
+  end
+
+  def delete(path)
+    # delete ...
+    cdn.delete(path)
+  end
+end</code></pre>
+        <pre><code class="ruby">class MediaService::PictureDatasource
+  def delete(path)
+    # delete ...
+    MediaService.cdn.delete(path)
+  end
+end</code></pre>
+          <pre><code class="ruby">class MediaService::PictureDatasource
+  def delete(path)
+    # delete ...
+    Akamai.new(:username => 'A',
+               :password => 'B',
+               :hostname => 'C').delete(path)
+  end
+end</code></pre>
+
+          <aside class="notes">
+            <p>Начнем с кода:</p>
+
+            <p>Допустим, вы пишете сервис по работе с картинками, и при удалении картинок из базы нам нужно удалять их из какого-нибудь CDN. Какой из классов вы хотели бы видеть в своем проекте?</p>
+
+            <p>Для тех, кто "проникся TDD и жить без него не может" - протестировать в руби можно все три варианта (вопрос в том, насколько это будет удобно, но сейчас я не об этом).</p>
+
+            <p>Допустим, третий вариант вы откидываем. Во втором варианте мы вполне можем динамически менять cdn и сам PictureDataSource зависеть от него не будет.</p>
+          </aside>
+        </section>
+
+        <section>
+          <h2>Are those options interchangeable?</h2>
+
+          <pre><code class="ruby">class MediaService::PictureDatasource
+  def initialize(cdn)
+    @cdn = cdn
+  end
+
+  def delete(path)
+    # delete ...
+    cdn.delete(path)
+  end
+end</code></pre>
+          <pre><code class="ruby">class MediaService::PictureDatasource
+  def delete(path)
+    # delete ...
+    MediaService.cdn.delete(path)
+  end
+end</code></pre>
+
+         <pre class="fragment"><code class="ruby">MediaService.with_cdn(akamai) do
+  datasource.delete(path)
+end</code></pre>
+
+          <aside class="notes">
+            <p>Являются ли эти варианты взаимозаменяемыми?</p>
+
+            <p>Теоретически в самом приложении так же можно "подменить" MediaService.cdn, но вы не сможете создать 2 разных инстанса MediaService с разными CDN. Представьте, что у вас есть 2 storage-а с одинаковыми интерфейсами работы с ними, но перед каждым из них стоят разные CDN.</p>
+
+            <p>Точнее это возможно, но с БОЛЬШИМИ извращениями.</p>
+
+            <p>Если кому интересно дальше поразрабатывать этот вариант - подумайте еще над тем, как сделать так, чтобы это все работало в многопоточном режиме.</p>
+
+            <p>Чтобы быть до конца честным - если просто передавать сюда инстанс CDN, то мы теряем одну маленькую возможность - иметь РАЗНЫЕ CDN при вызовах datasource.delete у одного и того же datasource. Но это тоже может решаться локально. Опять же, можно самим додумать как. :)</p>
+          </aside>
+        </section>
+
+        <section>
+          <h2>Dependency Inversion?</h2>
+          <p class="fragment">Yes, but that's not what I'd like to point out</p>
+          <h1 class="fragment">Locality of the objects</h1>
+
+          <aside class="notes">
+            <p>В общем случае - это dependency inversion и все. Но в данном случае я хочу обратить внимание не на сам принцип, а на то, ЧЕМ именно отличаются эти 2 варианта - локальностью. По крайней мере я буду называть ЭТО локальностью.</p>
+
+            <p>Я имею ввиду то, что нам не нужно никуда ходить для того, чтобы узнать CDN - он уже у нас есть, это наша локальная переменная.</p>
+
+            <p>Почему я считаю, что это важно - локальное лучше глобального. Всегда. Потому что с помощью локального всегда можно эмулировать глобальное. Обратное сделать иногда возможно, но не всегда. и практически НИКОГДА это нельзя сделать удобно.</p>
+
+            <p>Минус "локального" - приходится таскать с собой дополнительные параметры. Но как правило подобные сервисы с зависимостями создаются где-нибудь в одном месте и "таскать" приходится не так уж и много.</p>
+          </aside>
+        </section>
+
+        <section>
+          <pre><code class="ruby">MyGem.configure do |config|
+end
+
+MyGem.call_method</code></pre>
+
+          <pre class="fragment"><code class="ruby">config = MyGem::Config.new(:a => 'b')
+client = MyGem::Client.new(config)
+client.call_method</code></pre>
+
+          <aside class="notes">
+            <p>Если вы разрабатываете гем - попытайтесь в первую очередь дать возможность пользователю самому решать, как у него будет называться та или иная глобальная переменная. Старайтесь как можно меньше влиять на архитектуру приложения. Но если уж совсем хочется сделать удобно и глобально - сделайте сначала локально, а потом поверх этого в 10 строк сделайте глобальную надстройку:</p>
+
+            <p>Почему я вообще затронул эту тему - потому что я как правило не пишу обычные CRUD приложения с базой данных. Мне периодически приходится сталкиваться с гемами, которые делают "MyGem.configure" и не дают сделать несколько инстансов с разными параметрами (API chef-а можно этим "похвастаться" :().</p>
+          </aside>
+        </section>
+
+        <section>
+          <h3>Dependency Inversion -> Interface Ownership</h3>
+
+          <div class="fragment">
+            <p>But... Ruby does not have interfaces...</p>
+            <p>Does it need interface ownership?</p>
+          </div>
+
+          <aside class="notes">
+            <p>Продолжим про dependency inversion. Для тех, кто не в курсе - это последний из SOLID принципов и он говорит нам, что мы должны зависеть от абстракций, а не реализаций. В коде это в итоге выражается в том, что в статически-типизированных языках мы говорим, что мы получаем интерфейсы, а нам в итоге заходят какие-то реализации. В динамически-типизированных языках ситуация "даже проще" - интерфейсов нет, просто получаем сразу список любых обьектов и все хорошо.</p>
+
+            <p>К сожалению в Руби нет такого понятия как интерфейс и, соответственно, одна из важных, опять же - по моему мнению, частей принципа теряется - теряется "interface ownership", т.е. кто "владеет" интерфейсом, который описывает то, что должен получить обьект.</p>
+
+            <p>В чем, собственно проблема - у кого было хоть раз, что вы изменяете какой-нибудь метод (добавляете параметр, переименовываете его, удаляете вообще, потому что он вроде как не нужен, изменяете возвращаемое значение), а потом вы следом за этим меняете и кучу других обьектов, которые юзают изменившийся обьект?</p>
+
+            <p>Это следствие того, что вашего интерфейса либо в принципе не существует (типа, "а, что прийдет, то и буду юзать"), либо этим интерфейсом "владеет" кто-то еще.</p>
+          </aside>
+        </section>
+
+        <section>
+          <pre><code class="ruby">class AddsProductToCart
+  def initialize(user)
+    @user = user
+  end
+
+  def call(product)
+    @user.cart &lt;&lt; product
+  end
+end</code></pre>
+
+          <pre class="fragment"><code class="ruby">class AddsProductToCart
+  def call(product)
+    if product.published? &amp;&amp; @user.is_customer_of?(product.vendor)
+      @user.cart &lt;&lt; product
+    end
+  end
+end</code></pre>
+        </section>
+
+        <section>
+          <pre><code class="ruby">class User
+  def cart
+  end
+end</code></pre>
+
+          <pre class="fragment"><code class="ruby">class User
+  def profile
+  end
+end
+
+class Profile
+  def cart
+  end
+end</code></pre>
+        </section>
+
+        <section>
+          <pre><code class="ruby">user.cart -> user.profile.cart</code></pre>
+
+          <pre class="fragment"><code class="ruby">class AddsProductToCart
+  def call(product)
+    if product.published? &amp;&amp; @user.is_customer_of?(product.vendor)
+      @user.cart &lt;&lt; product
+    end
+  end
+end</code></pre>
+
+          <h2 class="fragment">Use adapters!</h2>
+
+          <aside class="notes">
+            Как избегать подобных ситуаций? Забирать интерфейс в свои руки. Если обьект, который передается в ваш класс меняется - это значит, что должна быть создана (или изменена, если она уже есть) прослойка (adapter), которая должна приводить чужой обьект, интерфейс которого изменился к интерфейсу, который нужен вам.
+          </aside>
+        </section>
+
+        <section>
+          <h3>Don't mock what you don't own</h3>
+          <aside class="notes">
+            Кстати, наверняка многие слышали фразу "don't mock what you don't own", так вот "own" в ней как раз относится к interface ownership. Потому что если этим интерфейсом владеет какой-то класс, то при тестировании этого класса можно смело его мокать, потому что он "ВАШ".
+          </aside>
+        </section>
+
+        <section>
+          <h2>"Interface ownership" how to</h2>
+          <p>When you create a new object and see that it needs some dependency, then define dependency's interface in terms of what you need from it, not in terms of what objects/classes you actually have in the application already</p>
+
+          <aside class="notes">
+            <p>Okay, now what? т.е. что нужно реально делать. Когда вы строите какой-то обьект и видите, что ему нужна зависимость (а они, если мы помним, должны быть локальные), то определяйте интерфейс этой зависимости исходя из того, что нужно этому классу, А НЕ ИЗ ТОГО, ЧТО УЖЕ ЕСТЬ ПОД РУКОЙ.</p>
+
+            <p>На практике лично у меня эти правила, иногда не работают (иногда все-таки приходится изменять интерфейс потому что очень проблематично писать адаптеры - как правило это связано с производительностью), но в целом подобный подход дает большую уверенность в коде.</p>
+          </aside>
+        </section>
+
+        <section>
+          <h2>"Interface ownership" and external gems</h2>
+          <h3>What if this class is in some gem?</h3>
+          <pre><code class="ruby">class AddsProductToCart
+  def initialize(user)
+    @user = user
+  end
+
+  def call(product)
+    if product.published? &amp;&amp; @user.is_customer_of?(product.vendor)
+      @user.cart &lt;&lt; product
+    end
+  end
+end</code></pre>
+
+          <p class="fragment">Check out rails_admin</p>
+
+          <aside class="notes">
+            <p>Что примечательно, тот же interface ownership как ни странно соблюдается при работе с гемами, но напрочь игнорируется при работе с собственным кодом:</p>
+
+            <p>Если подобные классы находятся снаружи приложения, то мы начинаем в первую очередь искать варианты которые позволяют нам работать не изменяя внешний класс. Но если он находится у нас под рукой - он сразу же попадает под нож.</p>
+
+            <p>Это ведет к довольно нелогичным и печальным последствиям. В пример хочется привести админки, типа rails_admin, которые как правило внутри значительно более адекватные и красивые чем "доморощенные админки", при том что доморощенные еще и беднее по функционалу.</p>
+          </aside>
+        </section>
+
+        <section>
+          <h2>Treat and design your objects so that you don't need to change them every time something else is changed. Let something else change the way the object works.</h2>
+
+          <aside class="notes">
+            Фиксируйте АПИ своих обьектов и старайтесь сделать добавлять функционал не меняя существующих обьектов, даже если кажется что "нужно всего одну строку поменять". Если можно с обьектом провести какую-то операцию с использованием существующего интерфейса - лучше это сделать именно так, а не вносить в АПИ дополнительные методы.
+          </aside>
+        </section>
+
+        <section>
+          <h2>Dependency inversion in Rails apps?</h2>
+          <div class="fragment">
+            <img src="img/dhh.jpg" alt="DHH">
+            <h2>Wat?</h2>
+          </div>
+
+          <aside class="notes">
+            И напоследок о том, откуда, собственно, эти все обьекты с зависимостями будут появляться в приложениях на Rails и как далеко стоит с этим заходить. В предыдущей презентации я говорил о том, как можно в методы контроллера инжектить зависимости и вообще все приложение строить вокруг DI-фреймворка, как уже давно делают джависты, теперь скалисты и многие другие.
+          </aside>
+        </section>
+
+        <section>
+          <h1>Rails is OMAKASE!</h1>
+          <p><a href="http://david.heinemeierhansson.com/2012/rails-is-omakase.html">http://david.heinemeierhansson.com/2012/rails-is-omakase.html</a></p>
+
+          <aside class="notes">
+            У рельс есть свое мнение относительно того, как строить приложения и ради того, чтобы все было красиво и "ООП" от этого отказываться не стоит. Я пока что не видел реальную и полноценно удобную замену activerecord-у. Да, Sequel удобный, но заменять AR на него я бы не стал. Использовать "репозитории" вместо того, что уже есть я тоже не вижу смысла.
+          </aside>
+        </section>
+
+        <section>
+          <pre><code class="ruby">class ExportController
+  def export
+    MyApp::Zookeeper.export_current_data_to_production
+    MyApp::Zookeeper.export_current_data_to_staging
+    MyApp::Zookeeper.export_current_data_to_ci
+  end
+end</code></pre>
+          <p>vs</p>
+          <pre><code class="ruby">class ExportController
+  def export
+    zk = MyApp::Zookeeper.new(production_config)
+    zk.export(SomeModel.current_data_for(SomeModel.env(:production)))
+  end
+end</code></pre>
+
+          <aside class="notes">
+            <p>Представьте что у вас задача текущую базу данных экспортировать в каком-нибудь виде во внешнее хранилище. Это обычное Rails-приложение с AR-слоем для работы с бд.</p>
+
+            <p>Кто считает что подобный подход будет лучше?</p>
+
+            <p>Довольно проблематично "инжектить в существующие контроллеры и модели" с которыми все привыкли работать что-то "из другого мира". Да и представьте, что вот это будет написано у вас в контроллере. Я считаю, что второй вариант открывает чересчур много информации о всем происходящем. Это все тому же контроллеру не нужно.</p>
+
+            <p>Поэтому я предпочитаю, особенно на начальных этапах, выносить все в статические методы каких-нибудь классов, чтобы внутри этих методов иметь возможность КАК УГОДНО менять реализацию. А уже после вынесения начинать дробить все на обьекты и их зависимости.</p>
+          </aside>
+        </section>
+
+        <section>
+          <h2>Another layer</h2>
+          <p><code>MyApp::Zookeeper.export_current_data_to_production</code> knows about your application, but the parts it is using does not know anything.</p>
+          <p>It is the starting point for the "whole new world"</p>
+        </section>
+
+        <section>
+          <pre><code class="ruby">module MyApp::Zookeeper
+  def self.export_current_data_to_production
+    dumper = ProductionDataDumper.new(database_records,
+                                      config[:production_prefix])
+    export(client_for(config[:production]), dumper.dump)
+  end
+end</code></pre>
+
+          <p><code>export_current_data_to_production</code> is not reusable and swappable by itself, but the <code>export</code> method and <code>ProductionDataDumper</code> are.</p>
+
+          <aside class="notes">
+            Я делаю для себя ограду, за которой я могу творить все что угодно. Я могу тут писать любой плохой и некрасивый код, но в последствии у меня будет возможность это легко рефакторить все что скрывает этот вызов.
+          </aside>
+        </section>
+
+        <section>
+          <pre><code class="ruby">class ApplicationController
+  def zookeeper
+    @zookeeper ||= MyApp::Zookeeper
+    # MyApp::Zookeeper.new(Rails.config(:zookeeper))
+  end
+end
+
+class SomeController &lt; ApplicationController
+  def production_export
+    zookeeper.export(Model.export_records)
+  end
+end</code></pre>
+
+          <aside class="notes">
+            Когда классы и интерфейсы, лежащие за <code>export_current_data_to_production</code> стабилизируются - можно начинать искать выносить их на уровень выше.
+          </aside>
+        </section>
+
+        <section>
+          <h1>To sum up</h1>
+          <ul>
+            <li>Minimize global state in gems</li>
+            <li>Applications is less restrictive in terms of global state, but still "local" stuff is much more manageable</li>
+            <li>Dependencies' interfaces should actually be "object which needs the dependency"-centric, not the "use what you already have"-centric</li>
+            <li>Abstract stuff and try not to break the abstractions every time you need something</li>
+            <li>Analyze your solutions, think what are the pros and cons</li>
+            <li>Happy hacking!</li>
+          </ul>
+
+          <aside class="notes">
+            <ul>
+              <li>стройте свои библиотеки так, чтобы глобальное состояние у них было минимально, потом всегда можно добавить "opinionated global interface"</li>
+              <li>конечные приложения могут сами решать, как им управлять глобальным состоянием, но это нужно делать аккуратно</li>
+              <li>думайте об интерфейсах зависимостей не с точки зрения того, ЧТО У ВАС УЖЕ ЕСТЬ, а с точки зрения того, ЧТО ВАМ ДЕЙСТВИТЕЛЬНО НУЖНО</li>
+              <li>если вы точно не знаете, как будет менятся функциональность в дальнейшем - абстрагируйтесь от решений так, чтобы у вас было максимум возможностей для дальнейшего развития. обычные методы с минимумом аргументов на первое время будут прослойкой между вашей системой, к которой у них будет доступ и полностью абстрагированной от внешнего мира функциональностью</li>
+              <li>Анализируйте ваши архитектурные решения, особенно через время после их принятия.</li>
+            </ul>
+          </aside>
+        </section>
+
+<!--
+        <section>
+        Эффект бабочки. Двойственность: изменения в одной части системы могут катастрофически влиять на другие части. В то же время архитектурные (да и вообще любые) решения, которые вы принимаете в процессе разработки приложения будут влиять на то, как вы будете дальше разрабатывать систему.
+
+        Convention over Configuration - это хорошо, пока не плохо, convention-ы сложно менять. Во многих случаях приходится подстраиваться.
+
+        Анализируйте все ваши (архитектурные) решения. в конец
+
+        Плохой код - это нормально, если он изолирован от всего остального приложения.
+
+        Как правило, в приложении значительно меньше абстракций, чем должно было бы быть. Но не нужно создавать абстракции просто потому что это можно сделать.
+
+        Не все абстракции одинаково полезны. И не на всех уровнях.
+
+        Готовьтесь к тому, что ваши классы и абстракции прийдется не только разьединять, но и соединять друг с другом.
+
+        Старайтесь делать ваши абстракции как можно более "маленькими". Если вы не уверены в стабильности интерфейса - один статический метод с парой параметров - это лучше чем 2 класса с опциональными настройками.
+
+        Статический метод (имеется ввиду не только метод класса, а случай, когда вы ТОЧНО знаете что вызываете) - это тоже абстракция. Да, его нельзя "заинджектить", но она скрывает за собой детали реализации.
+
+        -----
+        За один статический метод можно спрятать большое количество взаимодействующих друг с другом классов и обьектов (паттера Facade наоборот):
+
+        MyApp::Zookeeper.export_current_data_to_production
+        MyApp::Zookeeper.export_current_data_to_staging
+        MyApp::Zookeeper.export_current_data_to_ci
+
+        module MyApp::Zookeeper
+          def self.export_current_data_to_production
+            export(client_for(config[:production]), ProductionDataDumper.new(database_records, config[:production_prefix]).dump)
+          end
+        end
+        -----
+
+        Не весь код - reusable и не весь код можно просто взять и переиспользовать в другом приложении. В примере я не хочу и не собираюсь парится с конфигами и клиентом, до тех пор, пока мне не покажется, что это действительно нужно. В то же время статический метод export (который можно будет перенести в Export.new(client, dumper).run ПОТОМ) и Dumper-ы реюзабельны и взаимозаменяемы.
+
+        -----
+        Модули со статическими методами могут заменять обьекты до тех пор, пока им не понадобится состояние.
+
+        class Job
+          def serialize_itself_with(serializer)
+            serializer.dump(:id => id, :payload => generate_payload)
+          end
+          # ...
+        end
+
+        class JsonSerializer
+          def initialize(options)
+            @options = options
+          end
+
+          def dump(hash)
+            # ...
+          end
+        end
+
+        module GlobalJsonSerializer
+          def self.dump(hash)
+            JSON.dump(hash)
+          end
+        end
+
+        Job.new.serialize_itself_with(JsonSerializer.new(:pretty => true))
+        Job.new.serialize_itself_with(GlobalJsonSerializer)
+
+        с точки зрения serialize_itself_with его все равно - передан обьект или класс или модуль, они в итоге все имеют подходящий интерфейс. При подобнои использовании разница лишь в том, нужны ли настройки serializer-у. Это все - обьекты, выполняющие какую-то роль.
+
+        -----
+        -----
+
+        Многие решения можно откладывать, для этого и нужна абстракция.
+
+        -----
+        -----
+        Не нужно прятать внутри обьектов "чистые функции", которые могут реально быть полезны:
+
+        class A
+          def call(b)
+            # 20 lines of doing something with b and store the result
+            dependency.pass(result)
+          end
+        end
+
+        Лучше сделать так
+
+        class A
+          def self.process(b)
+            # 20 lines of doing something with b
+          end
+
+          def call(b)
+            result = self.class.process(b)
+            dependency.pass(result)
+          end
+        end
+        -----
+
+        Чистые функции, которые преобразовывают данные - это очень хорошо и удобно, чем их польше, тем лучше.
+
+        Функции vs обьекты-врапперы
+
+        Когда мы реализовываем какую-то функциональность - мы делим все обьекты на 2 типа:
+        1. те, которые зависят только от интерфейсов, которые принадлежат приложению
+        2. те, кто вынужден зависеть от чего-то стороннего (слоя вьюх, бд)
+        </section> -->
+
+        <section>
+          <h1>Thanks!</h1>
+        </section>
+
+      </div>
+
+    </div>
+
+    <script src="lib/js/head.min.js"></script>
+    <script src="js/reveal.min.js"></script>
+
+    <script>
+
+      // Full list of configuration options available here:
+      // https://github.com/hakimel/reveal.js#configuration
+      Reveal.initialize({
+        controls: true,
+        progress: true,
+        history: true,
+        center: true,
+
+        theme: Reveal.getQueryHash().theme, // available themes are in /css/theme
+        transition: Reveal.getQueryHash().transition || 'default', // default/cube/page/concave/zoom/linear/fade/none
+
+        // Parallax scrolling
+        // parallaxBackgroundImage: 'https://s3.amazonaws.com/hakim-static/reveal-js/reveal-parallax-1.jpg',
+        // parallaxBackgroundSize: '2100px 900px',
+
+        // Optional libraries used to extend on reveal.js
+        dependencies: [
+          { src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+          { src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+          { src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+          { src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+          { src: 'plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } },
+          { src: 'plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } }
+        ]
+      });
+
+    </script>
+
+  </body>
+</html>
