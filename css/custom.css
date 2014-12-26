@@ -13,7 +13,7 @@
   opacity: 0 !important;
 }
 
-.reveal .banner.current-fragment {
+.reveal .slides section .banner.current-fragment {
   opacity: 1 !important;
 }
 
